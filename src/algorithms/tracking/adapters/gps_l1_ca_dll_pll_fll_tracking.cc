@@ -7,7 +7,7 @@
  *         Melisa Lopez, 2016. 
  *         Adrián Pérez, 2018.
  *
- * Code DLL + carrier PLL according to the algorithms described in:
+ * Code DLL + carrier PLL + frequency FLL according to the algorithms described in:
  * K.Borre, D.M.Akos, N.Bertelsen, P.Rinder, and S.H.Jensen,
  * A Software-Defined GPS and Galileo Receiver. A Single-Frequency
  * Approach, Birkhauser, 2007
@@ -63,6 +63,8 @@ GpsL1CaDllPllFllTracking::GpsL1CaDllPllFllTracking(
     std::string default_item_type = "gr_complex";
     float pll_bw_hz;
     float dll_bw_hz;
+    float fll_bw_hz;
+    int order;
     float early_late_space_chips;
     item_type = configuration->property(role + ".item_type", default_item_type);
     int fs_in_deprecated = configuration->property("GNSS-SDR.internal_fs_hz", 2048000);
@@ -73,6 +75,9 @@ GpsL1CaDllPllFllTracking::GpsL1CaDllPllFllTracking(
     if(FLAGS_pll_bw_hz != 0.0) pll_bw_hz = static_cast<float>(FLAGS_pll_bw_hz);
     dll_bw_hz = configuration->property(role + ".dll_bw_hz", 2.0);
     if(FLAGS_dll_bw_hz != 0.0) dll_bw_hz = static_cast<float>(FLAGS_dll_bw_hz);
+    fll_bw_hz = configuration->property(role + ".fll_bw_hz", 7.0);
+    // TODO Add FLAGS check.
+    order = configuration->property(role + ".order", 3);
     early_late_space_chips = configuration->property(role + ".early_late_space_chips", 0.5);
     std::string default_dump_filename = "./track_ch";
     dump_filename = configuration->property(role + ".dump_filename", default_dump_filename); //unused!
@@ -90,6 +95,8 @@ GpsL1CaDllPllFllTracking::GpsL1CaDllPllFllTracking(
                     dump_filename,
                     pll_bw_hz,
                     dll_bw_hz,
+                    fll_bw_hz,
+                    order,
                     early_late_space_chips);
         }
     else

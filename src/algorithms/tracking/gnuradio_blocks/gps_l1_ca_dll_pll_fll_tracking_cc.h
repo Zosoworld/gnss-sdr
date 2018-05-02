@@ -1,11 +1,13 @@
 /*!
  * \file gps_l1_ca_dll_pll_fll_tracking_cc.h
- * \brief Interface of a code DLL + carrier PLL tracking block
+ * \brief Interface of a code DLL + carrier PLL + Frequency FLL tracking block
  * \author Carlos Aviles, 2010. carlos.avilesr(at)googlemail.com
  *         Javier Arribas, 2011. jarribas(at)cttc.es
  *         Cillian O'Driscoll, 2017. cillian.odriscoll(at)gmail.com
+ *         Melisa Lopez, 2016. 
+ *         Adrián Pérez, 2018.
  *
- * Code DLL + carrier PLL according to the algorithms described in:
+ * Code DLL + carrier PLL + frequency FLL according to the algorithms described in:
  * K.Borre, D.M.Akos, N.Bertelsen, P.Rinder, and S.H.Jensen,
  * A Software-Defined GPS and Galileo Receiver. A Single-Frequency Approach,
  * Birkhauser, 2007
@@ -45,6 +47,7 @@
 #include "gnss_synchro.h"
 #include "tracking_2nd_DLL_filter.h"
 #include "tracking_2nd_PLL_filter.h"
+#include "tracking_FLL_PLL_filter.h"
 #include "cpu_multicorrelator_real_codes.h"
 
 class Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc;
@@ -60,6 +63,8 @@ gps_l1_ca_dll_pll_fll_make_tracking_cc(long if_freq,
                                    std::string dump_filename,
                                    float pll_bw_hz,
                                    float dll_bw_hz,
+                                   float fll_bw_hz,
+                                   int order,
                                    float early_late_space_chips);
 
 
@@ -90,6 +95,8 @@ private:
             std::string dump_filename,
             float pll_bw_hz,
             float dll_bw_hz,
+            float fll_bw_hz,
+            int order,
             float early_late_space_chips);
 
     Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc(long if_freq,
@@ -99,6 +106,8 @@ private:
             std::string dump_filename,
             float pll_bw_hz,
             float dll_bw_hz,
+            float fll_bw_hz,
+            int order,
             float early_late_space_chips);
 
     int save_matfile();
@@ -121,7 +130,15 @@ private:
 
     // PLL and DLL filter library
     Tracking_2nd_DLL_filter d_code_loop_filter;
-    Tracking_2nd_PLL_filter d_carrier_loop_filter;
+
+    // FLL Filter
+    Tracking_FLL_PLL_filter d_carrier_loop_filter;
+    Tracking_2nd_PLL_filter d_carrier_loop_filter_old;
+    bool d_FLL_wait;
+    double d_FLL_discriminator_hz;
+    double PLL_discriminator_hz;
+    gr_complex d_Prompt_prev;
+    double correlation_time_s;
 
     // acquisition
     double d_acq_code_phase_samples;
@@ -140,6 +157,10 @@ private:
     double d_carrier_phase_step_rad;
     double d_acc_carrier_phase_rad;
     double d_code_phase_samples;
+    // Debugging vars
+    double d_carrier_doppler_hz_pll;
+    double* pll_dopplers;
+    double* fll_dopplers;
 
     //PRN period in samples
     int d_current_prn_length_samples;

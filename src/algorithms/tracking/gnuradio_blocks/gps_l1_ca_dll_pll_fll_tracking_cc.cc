@@ -1,10 +1,12 @@
 /*!
  * \file gps_l1_ca_dll_pll_fll_tracking_cc.cc
- * \brief Implementation of a code DLL + carrier PLL tracking block
+ * \brief Implementation of a code DLL + carrier PLL + frequency FLL tracking block
  * \author Carlos Aviles, 2010. carlos.avilesr(at)googlemail.com
  *         Javier Arribas, 2011. jarribas(at)cttc.es
+ *         Melisa Lopez, 2016. 
+ *         Adrián Pérez, 2018.
  *
- * Code DLL + carrier PLL according to the algorithms described in:
+ * Code DLL + carrier PLL + frequency FLL according to the algorithms described in:
  * [1] K.Borre, D.M.Akos, N.Bertelsen, P.Rinder, and S.H.Jensen,
  * A Software-Defined GPS and Galileo Receiver. A Single-Frequency
  * Approach, Birkhauser, 2007
@@ -63,10 +65,12 @@ gps_l1_ca_dll_pll_fll_make_tracking_cc(
         std::string dump_filename,
         float pll_bw_hz,
         float dll_bw_hz,
+        float fll_bw_hz,
+        int order,
         float early_late_space_chips)
 {
     return gps_l1_ca_dll_pll_fll_tracking_cc_sptr(new Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc(if_freq,
-            fs_in, vector_length, dump, dump_filename, pll_bw_hz, dll_bw_hz, early_late_space_chips));
+            fs_in, vector_length, dump, dump_filename, pll_bw_hz, dll_bw_hz, fll_bw_hz, order, early_late_space_chips));
 }
 
 
@@ -90,6 +94,8 @@ Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc(
         std::string dump_filename,
         float pll_bw_hz,
         float dll_bw_hz,
+        float fll_bw_hz,
+        int order,
         float early_late_space_chips) :
                 gr::block("Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc", gr::io_signature::make(1, 1, sizeof(gr_complex)),
                         gr::io_signature::make(1, 1, sizeof(Gnss_Synchro)))
@@ -109,7 +115,8 @@ Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc(
 
     // Initialize tracking  ==========================================
     d_code_loop_filter.set_DLL_BW(dll_bw_hz);
-    d_carrier_loop_filter.set_PLL_BW(pll_bw_hz);
+    d_carrier_loop_filter_old.set_PLL_BW(pll_bw_hz); // Substituted by FLL
+    d_carrier_loop_filter.set_params(fll_bw_hz, pll_bw_hz, order);
 
     //--- DLL variables --------------------------------------------------------
     d_early_late_spc_chips = early_late_space_chips; // Define early-late offset (in chips)
@@ -156,6 +163,9 @@ Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc(
     d_CN0_SNV_dB_Hz = 0;
     d_carrier_lock_fail_counter = 0;
     d_carrier_lock_threshold = FLAGS_carrier_lock_th;
+    // Debug vars
+    pll_dopplers = new double[FLAGS_cn0_samples];
+    fll_dopplers = new double[FLAGS_cn0_samples];
 
     systemName["G"] = std::string("GPS");
     systemName["S"] = std::string("SBAS");
@@ -223,8 +233,10 @@ void Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::start_tracking()
     d_carrier_phase_step_rad = GPS_TWO_PI * d_carrier_doppler_hz / static_cast<double>(d_fs_in);
 
     // DLL/PLL filter initialization
-    d_carrier_loop_filter.initialize(); // initialize the carrier filter
+    d_carrier_loop_filter.initialize(d_acq_carrier_doppler_hz); // initialize the carrier filter
     d_code_loop_filter.initialize();    // initialize the code filter
+    d_carrier_loop_filter_old.initialize();
+    d_FLL_wait = 1;
 
     // generate local reference ALWAYS starting at chip 1 (1 sample per chip)
     gps_l1_ca_code_gen_float(d_ca_code, d_acquisition_gnss_synchro->PRN, 0);
@@ -240,6 +252,10 @@ void Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::start_tracking()
     d_rem_carr_phase_rad = 0.0;
     d_rem_code_phase_chips = 0.0;
     d_acc_carrier_phase_rad = 0.0;
+    // FLL-related
+    d_FLL_discriminator_hz = 0;
+    d_FLL_wait = 1;
+    d_Prompt_prev = 0;
 
     d_code_phase_samples = d_acq_code_phase_samples;
 
@@ -527,6 +543,8 @@ int Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::general_work (int noutput_items __attribu
 
     // GNSS_SYNCHRO OBJECT to interchange data between tracking->telemetry_decoder
     Gnss_Synchro current_synchro_data = Gnss_Synchro();
+    // For the FLL Discriminator.
+    d_Prompt_prev = d_correlator_outs[1];
 
     if (d_enable_tracking == true)
         {
@@ -566,14 +584,49 @@ int Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::general_work (int noutput_items __attribu
             // ################## PLL ##########################################################
             // PLL discriminator
             // Update PLL discriminator [rads/Ti -> Secs/Ti]
+            
             carr_error_hz = pll_cloop_two_quadrant_atan(d_correlator_outs[1]) / GPS_TWO_PI; // prompt output
             // Carrier discriminator filter
-            carr_error_filt_hz = d_carrier_loop_filter.get_carrier_nco(carr_error_hz);
+            carr_error_filt_hz = d_carrier_loop_filter_old.get_carrier_nco(carr_error_hz);
+            /*if(d_channel == 0){
+                std::cout << "PLL discriminator: " << carr_error_hz << std::endl;
+            }*/
             // New carrier Doppler frequency estimation
-            d_carrier_doppler_hz = d_acq_carrier_doppler_hz + carr_error_filt_hz;
+            d_carrier_doppler_hz_pll = d_acq_carrier_doppler_hz + carr_error_filt_hz;
             // New code Doppler frequency estimation
+            //d_code_freq_chips = GPS_L1_CA_CODE_RATE_HZ + ((d_carrier_doppler_hz * GPS_L1_CA_CODE_RATE_HZ) / GPS_L1_FREQ_HZ);
+            //std::cout << "Code freq in chips from PLL: " << d_code_freq_chips << std::endl;
+            
+            // ################## PLL + FLL ##########################################################
+            
+            correlation_time_s = (static_cast<double>(d_current_prn_length_samples)) / d_fs_in;
+            if(d_FLL_wait == 1)
+            {
+                d_Prompt_prev = d_correlator_outs[1];
+                d_FLL_wait = 0;
+            }else{
+                d_FLL_discriminator_hz = fll_four_quadrant_atan(d_Prompt_prev, d_correlator_outs[1], 0, correlation_time_s) / GPS_TWO_PI;
+                /*if(d_channel == 0){
+                    std::cout << "FLL discriminator: " << d_FLL_discriminator_hz << std::endl;
+                }*/
+                d_Prompt_prev = d_correlator_outs[1];
+                d_FLL_wait = 1;
+            }
+            // Should be rad actually
+            PLL_discriminator_hz = pll_cloop_two_quadrant_atan(d_correlator_outs[1]) / GPS_TWO_PI;
+            //carr_error_filt_hz = d_carrier_loop_filter.get_carrier_error(d_FLL_discriminator_hz, PLL_discriminator_hz, correlation_time_s);
+            carr_error_filt_hz = d_carrier_loop_filter.get_carrier_error(d_FLL_discriminator_hz, PLL_discriminator_hz, correlation_time_s);
+            //std::cout << "CH" << d_channel << " Carrier doppler from FLL + PLL: " << d_carrier_doppler_hz << std::endl;
+            d_carrier_doppler_hz = carr_error_filt_hz;
+            /*if(d_channel == 0){
+                std::cout << "Carrier doppler from FLL + PLL: " << d_carrier_doppler_hz <<
+                " (" << carr_error_filt_hz << " + " << d_acq_carrier_doppler_hz << ")" << std::endl;
+                std::cout << "Carrier doppler from PLL: " << d_carrier_doppler_hz_pll <<
+                " (" << d_acq_carrier_doppler_hz - d_carrier_doppler_hz_pll << " + " << d_acq_carrier_doppler_hz << ")" << std::endl;
+            }*/
             d_code_freq_chips = GPS_L1_CA_CODE_RATE_HZ + ((d_carrier_doppler_hz * GPS_L1_CA_CODE_RATE_HZ) / GPS_L1_FREQ_HZ);
-
+            //std::cout << "Code freq in chips from FLL + PLL: " << d_code_freq_chips << std::endl;
+            
             // ################## DLL ##########################################################
             // DLL discriminator
             code_error_chips = dll_nc_e_minus_l_normalized(d_correlator_outs[0], d_correlator_outs[2]); // [chips/Ti] //early and late
@@ -596,11 +649,17 @@ int Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::general_work (int noutput_items __attribu
             //################### PLL COMMANDS #################################################
             // carrier phase step (NCO phase increment per sample) [rads/sample]
             d_carrier_phase_step_rad = GPS_TWO_PI * d_carrier_doppler_hz / static_cast<double>(d_fs_in);
+            
             // remnant carrier phase to prevent overflow in the code NCO
             d_rem_carr_phase_rad = d_rem_carr_phase_rad + d_carrier_phase_step_rad * d_current_prn_length_samples;
             d_rem_carr_phase_rad = fmod(d_rem_carr_phase_rad, GPS_TWO_PI);
             // carrier phase accumulator
             d_acc_carrier_phase_rad -= d_carrier_phase_step_rad * d_current_prn_length_samples;
+            /*if(d_channel == 0){
+                std::cout << "Carrier phase step: " << d_carrier_phase_step_rad << std::endl;
+                std::cout << "Remnant carrier phase rad: " << d_rem_carr_phase_rad << std::endl;
+                std::cout << "Accumulated carrier phase: " << d_acc_carrier_phase_rad << std::endl;
+            }*/
 
             //################### DLL COMMANDS #################################################
             // code phase step (Code resampler phase increment per sample) [chips/sample]
@@ -614,6 +673,8 @@ int Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::general_work (int noutput_items __attribu
                 {
                     // fill buffer with prompt correlator output values
                     d_Prompt_buffer[d_cn0_estimation_counter] = d_correlator_outs[1]; //prompt
+                    pll_dopplers[d_cn0_estimation_counter] = d_carrier_doppler_hz_pll;
+                    fll_dopplers[d_cn0_estimation_counter] = d_carrier_doppler_hz;
                     d_cn0_estimation_counter++;
                 }
             else
@@ -624,15 +685,43 @@ int Gps_L1_Ca_Dll_Pll_Fll_Tracking_cc::general_work (int noutput_items __attribu
                     // Carrier lock indicator
                     d_carrier_lock_test = carrier_lock_detector(d_Prompt_buffer, FLAGS_cn0_samples);
                     // Loss of lock detection
+                    if(std::rand()%10 == 1 && d_channel == 2){
+                        //std::cout << "CH" << d_channel << " Doppler: " << d_carrier_doppler_hz << std::endl;
+                    }
                     if (d_carrier_lock_test < d_carrier_lock_threshold or d_CN0_SNV_dB_Hz < FLAGS_cn0_min)
                         {
+                            // TODO REMOVE
+                            /*if(d_carrier_lock_test < d_carrier_lock_threshold){
+                                std::cout << "CH" << d_channel << " Carrier lock test failed: " 
+                                << d_carrier_lock_test << " ("<< d_carrier_lock_threshold << ")" << std::endl;
+                            }else{
+                                std::cout << "CH" << d_channel << " Code lock test failed: " 
+                                << d_CN0_SNV_dB_Hz << " ("<< FLAGS_cn0_min << ")" << std::endl;
+                            }*/
+                            /*std::cout << "PLL Dopplers: ";
+                            for(int i = 0; i < FLAGS_cn0_samples; i++){
+                                std::cout << pll_dopplers[i] << ", ";
+                            }
+                            std::cout << std::endl << "FLL Dopplers: ";
+                            for(int i = 0; i < FLAGS_cn0_samples; i++){
+                                std::cout << fll_dopplers[i] << ", ";
+                            }*/
+                            /*std::cout << std::endl << "Doppler diff: ";
+                            for(int i = 0; i < FLAGS_cn0_samples; i++){
+                                std::cout << pll_dopplers[i] - fll_dopplers[i] << ", ";
+                            }
+                            std::cout << std::endl << "-------------------------------------" << std::endl;
+                            */// TODO REMOVE
+
                             d_carrier_lock_fail_counter++;
                         }
                     else
                         {
                             if (d_carrier_lock_fail_counter > 0) d_carrier_lock_fail_counter--;
                         }
-                    if (d_carrier_lock_fail_counter > FLAGS_max_lock_fail)
+                    //if (d_carrier_lock_fail_counter > FLAGS_max_lock_fail)
+                    // Threshold obtained by statistical analysis of tests
+                    if (d_carrier_lock_fail_counter > 174)
                         {
                             std::cout << "Loss of lock in channel " << d_channel << "!" << std::endl;
                             LOG(INFO) << "Loss of lock in channel " << d_channel << "!";

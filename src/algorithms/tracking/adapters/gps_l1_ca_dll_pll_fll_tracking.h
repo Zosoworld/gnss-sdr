@@ -7,7 +7,7 @@
  *         Melisa Lopez, 2016. 
  *         Adrián Pérez, 2018.
  *
- * Code DLL + carrier PLL according to the algorithms described in:
+ * Code DLL + carrier PLL + frequency FLL according to the algorithms described in:
  * K.Borre, D.M.Akos, N.Bertelsen, P.Rinder, and S.H.Jensen,
  * A Software-Defined GPS and Galileo Receiver. A Single-Frequency
  * Approach, Birkhauser, 2007
