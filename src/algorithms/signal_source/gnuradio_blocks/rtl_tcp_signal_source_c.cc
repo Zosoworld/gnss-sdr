@@ -153,7 +153,10 @@ rtl_tcp_signal_source_c::rtl_tcp_signal_source_c(const std::string &address,
 
 rtl_tcp_signal_source_c::~rtl_tcp_signal_source_c()
 {
-   io_service_.stop ();
+    boost::mutex::scoped_lock lock (mutex_);
+    std::cout << "[" << boost::this_thread::get_id() << "] Destroying..." << std::endl;
+    io_service_.stop ();
+    not_empty_.notify_one();
 }
 
 
@@ -169,10 +172,11 @@ int rtl_tcp_signal_source_c::work (int noutput_items,
         }
 
     {
+        
         boost::mutex::scoped_lock lock (mutex_);
         not_empty_.wait (lock, boost::bind (&rtl_tcp_signal_source_c::not_empty,
                 this));
-
+        std::cout << "[" << boost::this_thread::get_id() << "] Consuming data." << std::endl;
         for ( ; i < noutput_items && unread_ > 1; i++ )
             {
                 float re = buffer_[--unread_];
@@ -329,21 +333,24 @@ void rtl_tcp_signal_source_c::handle_read (const boost::system::error_code &ec,
         {
             {
                 // Unpack read data
+                std::cout << "[" << boost::this_thread::get_id() << "] Going into scoped lock 2" << std::endl;
                 boost::mutex::scoped_lock lock (mutex_);
                 not_full_.wait (lock,
                         boost::bind (&rtl_tcp_signal_source_c::not_full,
                                 this));
-
+                std::cout << "[" << boost::this_thread::get_id() << "] Out of scoped lock 2" << std::endl;
                 for (size_t i = 0; i < bytes_transferred; i++)
                     {
                         while (!not_full( ))
                             {
                                 // uh-oh, buffer overflow
                                 // wait until there's space for more
-                                not_empty_.notify_one (); // needed?
+                                std::cout << "[" << boost::this_thread::get_id() << "] Going into scoped lock 3" << std::endl;
+                                //not_empty_.notify_one (); // needed?
                                 not_full_.wait (lock,
                                         boost::bind (&rtl_tcp_signal_source_c::not_full,
                                                 this));
+                                std::cout << "[" << boost::this_thread::get_id() << "] Out of scoped lock 3" << std::endl;
                             }
 
                         buffer_.push_front (lookup_[data_[i]]);
