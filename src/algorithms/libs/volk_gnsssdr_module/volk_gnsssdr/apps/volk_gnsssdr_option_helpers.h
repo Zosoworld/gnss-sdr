@@ -16,11 +16,15 @@
  * along with GNSS-SDR. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef VOLK_VOLK_OPTION_HELPERS_H
-#define VOLK_VOLK_OPTION_HELPERS_H
+#ifndef VOLK_GNSSSDR_OPTION_HELPERS_H
+#define VOLK_GNSSSDR_OPTION_HELPERS_H
 
+#include <climits>
+#include <cstring>
+#include <map>
 #include <string>
 #include <vector>
+
 
 typedef enum
 {
@@ -32,7 +36,8 @@ typedef enum
     STRING,
 } VOLK_OPTYPE;
 
-class option_t {
+class option_t
+{
 public:
     option_t(std::string longform, std::string shortform, std::string msg, void (*callback)());
     option_t(std::string longform, std::string shortform, std::string msg, void (*callback)(int));
@@ -47,7 +52,6 @@ public:
     VOLK_OPTYPE option_type;
     std::string printval;
     void (*callback)();
-
 };
 
 class option_list
@@ -55,15 +59,16 @@ class option_list
 public:
     option_list(std::string program_name);
 
-    void add(const option_t & opt);
+    void add(const option_t &opt);
 
     void parse(int argc, char **argv);
 
     void help();
+
 private:
     std::string program_name;
     std::vector<option_t> internal_list;
 };
 
 
-#endif //VOLK_VOLK_OPTION_HELPERS_H
+#endif  //VOLK_GNSSSDR_OPTION_HELPERS_H

@@ -35,14 +35,14 @@ typedef struct volk_gnsssdr_func_desc
     const char **impl_names;
     const int *impl_deps;
     const bool *impl_alignment;
-    const size_t n_impls;
+    size_t n_impls;
 } volk_gnsssdr_func_desc_t;
 
 //! Prints a list of machines available
 VOLK_API void volk_gnsssdr_list_machines(void);
 
 //! Returns the name of the machine this instance will use
-VOLK_API const char* volk_gnsssdr_get_machine(void);
+VOLK_API const char *volk_gnsssdr_get_machine(void);
 
 //! Get the machine alignment in bytes
 VOLK_API size_t volk_gnsssdr_get_alignment(void);
@@ -68,6 +68,7 @@ VOLK_API size_t volk_gnsssdr_get_alignment(void);
  */
 VOLK_API bool volk_gnsssdr_is_aligned(const void *ptr);
 
+// clang-format off
 %for kern in kernels:
 
 //! A function pointer to the dispatcher implementation
@@ -85,8 +86,7 @@ extern VOLK_API void ${kern.name}_manual(${kern.arglist_full}, const char* impl_
 //! Get description parameters for this kernel
 extern VOLK_API volk_gnsssdr_func_desc_t ${kern.name}_get_func_desc(void);
 %endfor
-
 __VOLK_DECL_END
-
+// clang-format on
 
 #endif /*INCLUDED_VOLK_GNSSSDR_RUNTIME*/

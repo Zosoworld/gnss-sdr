@@ -29,36 +29,37 @@
  */
 
 #include "tracking_dump_reader.h"
+#include <iostream>
 
 bool tracking_dump_reader::read_binary_obs()
 {
     try
-    {
+        {
+            d_dump_file.read(reinterpret_cast<char *>(&abs_VE), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&abs_E), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&abs_P), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&abs_L), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&abs_VL), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&prompt_I), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&prompt_Q), sizeof(float));
-
             d_dump_file.read(reinterpret_cast<char *>(&PRN_start_sample_count), sizeof(unsigned long int));
-
-            d_dump_file.read(reinterpret_cast<char *>(&acc_carrier_phase_rad), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&carrier_doppler_hz), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&code_freq_chips), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&carr_error_hz), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&carr_error_filt_hz), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&code_error_chips), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&code_error_filt_chips), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&CN0_SNV_dB_Hz), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&carrier_lock_test), sizeof(double));
-            d_dump_file.read(reinterpret_cast<char *>(&aux1), sizeof(double));
+            d_dump_file.read(reinterpret_cast<char *>(&acc_carrier_phase_rad), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&carrier_doppler_hz), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&code_freq_chips), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&carr_error_hz), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&carr_error_filt_hz), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&code_error_chips), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&code_error_filt_chips), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&CN0_SNV_dB_Hz), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&carrier_lock_test), sizeof(float));
+            d_dump_file.read(reinterpret_cast<char *>(&aux1), sizeof(float));
             d_dump_file.read(reinterpret_cast<char *>(&aux2), sizeof(double));
             d_dump_file.read(reinterpret_cast<char *>(&PRN), sizeof(unsigned int));
-    }
+        }
     catch (const std::ifstream::failure &e)
-    {
+        {
             return false;
-    }
+        }
     return true;
 }
 
@@ -81,10 +82,10 @@ bool tracking_dump_reader::restart()
 long int tracking_dump_reader::num_epochs()
 {
     std::ifstream::pos_type size;
-    int number_of_double_vars = 11;
-    int number_of_float_vars = 5;
+    int number_of_double_vars = 1;
+    int number_of_float_vars = 17;
     int epoch_size_bytes = sizeof(unsigned long int) + sizeof(double) * number_of_double_vars +
-            sizeof(float) * number_of_float_vars + sizeof(unsigned int);
+                           sizeof(float) * number_of_float_vars + sizeof(unsigned int);
     std::ifstream tmpfile(d_dump_filename.c_str(), std::ios::binary | std::ios::ate);
     if (tmpfile.is_open())
         {
@@ -104,18 +105,18 @@ bool tracking_dump_reader::open_obs_file(std::string out_file)
     if (d_dump_file.is_open() == false)
         {
             try
-            {
+                {
                     d_dump_filename = out_file;
-                    d_dump_file.exceptions( std::ifstream::failbit | std::ifstream::badbit );
+                    d_dump_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
                     d_dump_file.open(d_dump_filename.c_str(), std::ios::in | std::ios::binary);
                     std::cout << "Tracking dump enabled, Log file: " << d_dump_filename.c_str() << std::endl;
                     return true;
-            }
-            catch (const std::ifstream::failure & e)
-            {
+                }
+            catch (const std::ifstream::failure &e)
+                {
                     std::cout << "Problem opening Tracking dump Log file: " << d_dump_filename.c_str() << std::endl;
                     return false;
-            }
+                }
         }
     else
         {

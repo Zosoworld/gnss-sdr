@@ -33,6 +33,7 @@ set(ACQ_ADAPTER_SOURCES
     galileo_e5a_noncoherent_iq_acquisition_caf.cc
     galileo_e5a_pcps_acquisition.cc
     glonass_l1_ca_pcps_acquisition.cc
+    glonass_l2_ca_pcps_acquisition.cc
 )
 
 if(ENABLE_FPGA)
@@ -54,6 +55,7 @@ include_directories(
      ${Boost_INCLUDE_DIRS}
      ${GLOG_INCLUDE_DIRS}
      ${GFlags_INCLUDE_DIRS}
+     ${ARMADILLO_INCLUDE_DIRS}
      ${GNURADIO_RUNTIME_INCLUDE_DIRS}
      ${GNURADIO_BLOCKS_INCLUDE_DIRS}
      ${VOLK_GNSSSDR_INCLUDE_DIRS}

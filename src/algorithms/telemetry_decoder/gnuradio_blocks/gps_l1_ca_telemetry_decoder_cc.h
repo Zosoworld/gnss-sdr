@@ -31,23 +31,21 @@
 #ifndef GNSS_SDR_GPS_L1_CA_TELEMETRY_DECODER_CC_H
 #define GNSS_SDR_GPS_L1_CA_TELEMETRY_DECODER_CC_H
 
-#include <fstream>
-#include <string>
-#include <gnuradio/block.h>
-#include <deque>
 #include "GPS_L1_CA.h"
 #include "gps_l1_ca_subframe_fsm.h"
-#include "concurrent_queue.h"
 #include "gnss_satellite.h"
 #include "gnss_synchro.h"
-
+#include <gnuradio/block.h>
+#include <fstream>
+#include <string>
+#include <boost/circular_buffer.hpp>
 
 class gps_l1_ca_telemetry_decoder_cc;
 
 typedef boost::shared_ptr<gps_l1_ca_telemetry_decoder_cc> gps_l1_ca_telemetry_decoder_cc_sptr;
 
 gps_l1_ca_telemetry_decoder_cc_sptr
-gps_l1_ca_make_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
+gps_l1_ca_make_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
 
 /*!
  * \brief This class implements a block that decodes the NAV data defined in IS-GPS-200E
@@ -57,20 +55,20 @@ class gps_l1_ca_telemetry_decoder_cc : public gr::block
 {
 public:
     ~gps_l1_ca_telemetry_decoder_cc();
-    void set_satellite(const Gnss_Satellite & satellite);  //!< Set satellite PRN
-    void set_channel(int channel);                         //!< Set receiver's channel
+    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
+    void set_channel(int channel);                        //!< Set receiver's channel
 
     /*!
      * \brief This is where all signal processing takes place
      */
-    int general_work (int noutput_items, gr_vector_int &ninput_items,
-            gr_vector_const_void_star &input_items, gr_vector_void_star &output_items);
+    int general_work(int noutput_items, gr_vector_int &ninput_items,
+        gr_vector_const_void_star &input_items, gr_vector_void_star &output_items);
 
 private:
     friend gps_l1_ca_telemetry_decoder_cc_sptr
-    gps_l1_ca_make_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
+    gps_l1_ca_make_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
 
-    gps_l1_ca_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
+    gps_l1_ca_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
 
     bool gps_word_parityCheck(unsigned int gpsword);
 
@@ -81,10 +79,14 @@ private:
     bool d_flag_frame_sync;
 
     // symbols
-    std::deque<Gnss_Synchro> d_symbol_history;
+    boost::circular_buffer<Gnss_Synchro> d_symbol_history;
 
     double d_symbol_accumulator;
     short int d_symbol_accumulator_counter;
+
+    // symbol counting
+    bool d_make_correlation;
+    unsigned int d_symbol_counter_corr;
 
     //bits and frame
     unsigned short int d_frame_bit_index;
@@ -109,8 +111,9 @@ private:
 
     unsigned long int d_preamble_time_samples;
 
-    long double d_TOW_at_Preamble;
-    long double d_TOW_at_current_symbol;
+    double d_TOW_at_Preamble;
+    double d_TOW_at_current_symbol;
+    unsigned int d_TOW_at_current_symbol_ms;
 
     bool flag_TOW_set;
     bool flag_PLL_180_deg_phase_locked;

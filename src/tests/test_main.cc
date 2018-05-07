@@ -29,17 +29,6 @@
 * -------------------------------------------------------------------------
 */
 
-#include <cmath>
-#include <iostream>
-#include <queue>
-#include <memory>
-#include <boost/thread.hpp>
-#include <boost/make_shared.hpp>
-#include <boost/filesystem.hpp>
-#include <gflags/gflags.h>
-#include <glog/logging.h>
-#include <gnuradio/msg_queue.h>
-#include <gtest/gtest.h>
 #include "concurrent_queue.h"
 #include "concurrent_map.h"
 #include "control_thread.h"
@@ -62,6 +51,19 @@
 #include "glonass_gnav_ephemeris.h"
 #include "glonass_gnav_almanac.h"
 #include "glonass_gnav_utc_model.h"
+
+#include <boost/thread.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/filesystem.hpp>
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+#include <gnuradio/msg_queue.h>
+#include <gtest/gtest.h>
+#include <cmath>
+#include <iostream>
+#include <queue>
+#include <memory>
+
 
 using google::LogMessage;
 
@@ -112,6 +114,7 @@ DECLARE_string(log_dir);
 #include "unit-tests/signal-processing-blocks/acquisition/galileo_e1_pcps_quicksync_ambiguous_acquisition_gsoc2014_test.cc"
 #include "unit-tests/signal-processing-blocks/acquisition/galileo_e5a_pcps_acquisition_gsoc2014_gensource_test.cc"
 #include "unit-tests/signal-processing-blocks/acquisition/glonass_l1_ca_pcps_acquisition_gsoc2017_test.cc"
+// #include "unit-tests/signal-processing-blocks/acquisition/glonass_l2_ca_pcps_acquisition_test.cc"
 
 #if OPENCL_BLOCKS_TEST
 #include "unit-tests/signal-processing-blocks/acquisition/gps_l1_ca_pcps_opencl_acquisition_gsoc2013_test.cc"
@@ -143,11 +146,9 @@ DECLARE_string(log_dir);
 #include "unit-tests/signal-processing-blocks/acquisition/gps_l2_m_pcps_acquisition_test.cc"
 #include "unit-tests/signal-processing-blocks/acquisition/glonass_l1_ca_pcps_acquisition_test.cc"
 #include "unit-tests/signal-processing-blocks/tracking/gps_l2_m_dll_pll_tracking_test.cc"
-#if MODERN_ARMADILLO
 #include "unit-tests/signal-processing-blocks/tracking/gps_l1_ca_dll_pll_tracking_test.cc"
 #include "unit-tests/signal-processing-blocks/telemetry_decoder/gps_l1_ca_telemetry_decoder_test.cc"
 #include "unit-tests/signal-processing-blocks/observables/hybrid_observables_test.cc"
-#endif
 #endif
 
 #include "unit-tests/system-parameters/glonass_gnav_ephemeris_test.cc"
@@ -162,20 +163,22 @@ int main(int argc, char **argv)
     std::cout << "Running GNSS-SDR Tests..." << std::endl;
     int res = 0;
     try
-    {
+        {
             testing::InitGoogleTest(&argc, argv);
-    }
-    catch(...) {} // catch the "testing::internal::<unnamed>::ClassUniqueToAlwaysTrue" from gtest
+        }
+    catch (...)
+        {
+        }  // catch the "testing::internal::<unnamed>::ClassUniqueToAlwaysTrue" from gtest
     google::ParseCommandLineFlags(&argc, &argv, true);
     google::InitGoogleLogging(argv[0]);
     try
-    {
+        {
             res = RUN_ALL_TESTS();
-    }
-    catch(...)
-    {
+        }
+    catch (...)
+        {
             LOG(WARNING) << "Unexpected catch";
-    }
+        }
     google::ShutDownCommandLineFlags();
     return res;
 }

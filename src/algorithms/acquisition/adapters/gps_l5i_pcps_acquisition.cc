@@ -32,21 +32,21 @@
  */
 
 #include "gps_l5i_pcps_acquisition.h"
-#include <boost/math/distributions/exponential.hpp>
-#include <glog/logging.h>
+#include "configuration_interface.h"
 #include "gps_l5_signal.h"
 #include "GPS_L5.h"
-#include "configuration_interface.h"
 #include "gnss_sdr_flags.h"
+#include <boost/math/distributions/exponential.hpp>
+#include <glog/logging.h>
 
 
 using google::LogMessage;
 
 GpsL5iPcpsAcquisition::GpsL5iPcpsAcquisition(
-        ConfigurationInterface* configuration, std::string role,
-        unsigned int in_streams, unsigned int out_streams) :
-    role_(role), in_streams_(in_streams), out_streams_(out_streams)
+    ConfigurationInterface* configuration, std::string role,
+    unsigned int in_streams, unsigned int out_streams) : role_(role), in_streams_(in_streams), out_streams_(out_streams)
 {
+    pcpsconf_t acq_parameters;
     configuration_ = configuration;
     std::string default_item_type = "gr_complex";
     std::string default_dump_filename = "./data/acquisition.dat";
@@ -57,33 +57,37 @@ GpsL5iPcpsAcquisition::GpsL5iPcpsAcquisition(
 
     long fs_in_deprecated = configuration_->property("GNSS-SDR.internal_fs_hz", 2048000);
     fs_in_ = configuration_->property("GNSS-SDR.internal_fs_sps", fs_in_deprecated);
+    acq_parameters.fs_in = fs_in_;
     if_ = configuration_->property(role + ".if", 0);
+    acq_parameters.freq = if_;
     dump_ = configuration_->property(role + ".dump", false);
+    acq_parameters.dump = dump_;
     blocking_ = configuration_->property(role + ".blocking", true);
+    acq_parameters.blocking = blocking_;
     doppler_max_ = configuration->property(role + ".doppler_max", 5000);
-    if (FLAGS_doppler_max != 0 ) doppler_max_ = FLAGS_doppler_max;
-
+    if (FLAGS_doppler_max != 0) doppler_max_ = FLAGS_doppler_max;
+    acq_parameters.doppler_max = doppler_max_;
     bit_transition_flag_ = configuration_->property(role + ".bit_transition_flag", false);
-    use_CFAR_algorithm_flag_=configuration_->property(role + ".use_CFAR_algorithm", true); //will be false in future versions
-
+    acq_parameters.bit_transition_flag = bit_transition_flag_;
+    use_CFAR_algorithm_flag_ = configuration_->property(role + ".use_CFAR_algorithm", true);  //will be false in future versions
+    acq_parameters.use_CFAR_algorithm_flag = use_CFAR_algorithm_flag_;
     max_dwells_ = configuration_->property(role + ".max_dwells", 1);
-
+    acq_parameters.max_dwells = max_dwells_;
     dump_filename_ = configuration_->property(role + ".dump_filename", default_dump_filename);
-
+    acq_parameters.dump_filename = dump_filename_;
     //--- Find number of samples per spreading code -------------------------
-    code_length_ = round(static_cast<double>(fs_in_)
-            / (GPS_L5i_CODE_RATE_HZ / static_cast<double>(GPS_L5i_CODE_LENGTH_CHIPS)));
+    code_length_ = static_cast<unsigned int>(std::round(static_cast<double>(fs_in_) / (GPS_L5i_CODE_RATE_HZ / static_cast<double>(GPS_L5i_CODE_LENGTH_CHIPS))));
 
     vector_length_ = code_length_;
 
-    if( bit_transition_flag_ )
+    if (bit_transition_flag_)
         {
             vector_length_ *= 2;
         }
 
     code_ = new gr_complex[vector_length_];
 
-    if (item_type_.compare("cshort") == 0 )
+    if (item_type_.compare("cshort") == 0)
         {
             item_size_ = sizeof(lv_16sc_t);
         }
@@ -91,15 +95,19 @@ GpsL5iPcpsAcquisition::GpsL5iPcpsAcquisition(
         {
             item_size_ = sizeof(gr_complex);
         }
-    acquisition_ = pcps_make_acquisition(1, max_dwells_,
-            doppler_max_, if_, fs_in_, code_length_, code_length_,
-            bit_transition_flag_, use_CFAR_algorithm_flag_, dump_, blocking_,
-            dump_filename_, item_size_);
+    acq_parameters.samples_per_code = code_length_;
+    acq_parameters.samples_per_ms = code_length_;
+    acq_parameters.it_size = item_size_;
+    acq_parameters.sampled_ms = 1;
+    acq_parameters.num_doppler_bins_step2 = configuration_->property(role + ".second_nbins", 4);
+    acq_parameters.doppler_step2 = configuration_->property(role + ".second_doppler_step", 125.0);
+    acq_parameters.make_2_steps = configuration_->property(role + ".make_two_steps", false);
+    acquisition_ = pcps_make_acquisition(acq_parameters);
     DLOG(INFO) << "acquisition(" << acquisition_->unique_id() << ")";
 
     stream_to_vector_ = gr::blocks::stream_to_vector::make(item_size_, vector_length_);
     DLOG(INFO) << "stream_to_vector(" << stream_to_vector_->unique_id() << ")";
-    
+
     if (item_type_.compare("cbyte") == 0)
         {
             cbyte_to_float_x2_ = make_complex_byte_to_float_x2();
@@ -130,11 +138,11 @@ void GpsL5iPcpsAcquisition::set_threshold(float threshold)
 {
     float pfa = configuration_->property(role_ + boost::lexical_cast<std::string>(channel_) + ".pfa", 0.0);
 
-    if(pfa == 0.0)
+    if (pfa == 0.0)
         {
             pfa = configuration_->property(role_ + ".pfa", 0.0);
         }
-    if(pfa == 0.0)
+    if (pfa == 0.0)
         {
             threshold_ = threshold;
         }
@@ -143,7 +151,7 @@ void GpsL5iPcpsAcquisition::set_threshold(float threshold)
             threshold_ = calculate_threshold(pfa);
         }
 
-    DLOG(INFO) << "Channel " << channel_ <<" Threshold = " << threshold_;
+    DLOG(INFO) << "Channel " << channel_ << " Threshold = " << threshold_;
 
     acquisition_->set_threshold(threshold_);
 }
@@ -188,9 +196,8 @@ void GpsL5iPcpsAcquisition::init()
 
 void GpsL5iPcpsAcquisition::set_local_code()
 {
-
     gps_l5i_code_gen_complex_sampled(code_, gnss_synchro_->PRN, fs_in_);
-    
+
     acquisition_->set_local_code(code_);
 }
 
@@ -206,7 +213,6 @@ void GpsL5iPcpsAcquisition::set_state(int state)
 }
 
 
-
 float GpsL5iPcpsAcquisition::calculate_threshold(float pfa)
 {
     //Calculate the threshold
@@ -215,13 +221,13 @@ float GpsL5iPcpsAcquisition::calculate_threshold(float pfa)
         {
             frequency_bins++;
         }
-    DLOG(INFO) << "Channel " << channel_<< "  Pfa = " << pfa;
+    DLOG(INFO) << "Channel " << channel_ << "  Pfa = " << pfa;
     unsigned int ncells = vector_length_ * frequency_bins;
     double exponent = 1.0 / static_cast<double>(ncells);
     double val = pow(1.0 - pfa, exponent);
     double lambda = double(vector_length_);
-    boost::math::exponential_distribution<double> mydist (lambda);
-    float threshold = static_cast<float>(quantile(mydist,val));
+    boost::math::exponential_distribution<double> mydist(lambda);
+    float threshold = static_cast<float>(quantile(mydist, val));
 
     return threshold;
 }
@@ -303,4 +309,3 @@ gr::basic_block_sptr GpsL5iPcpsAcquisition::get_right_block()
 {
     return acquisition_;
 }
-

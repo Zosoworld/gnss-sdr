@@ -1,7 +1,6 @@
 /*!
  * \file gps_l5_telemetry_decoder_cc.h
- * \brief Interface of a CNAV message demodulator block based on
- * Kay Borre book MATLAB-based GPS receiver
+ * \brief Interface of a CNAV message demodulator block
  * \author Antonio Ramos, 2017. antonio.ramos(at)cttc.es
  * -------------------------------------------------------------------------
  *
@@ -31,21 +30,22 @@
 #ifndef GNSS_SDR_GPS_L5_TELEMETRY_DECODER_CC_H
 #define GNSS_SDR_GPS_L5_TELEMETRY_DECODER_CC_H
 
+
+#include "gnss_satellite.h"
+#include "gps_cnav_navigation_message.h"
+#include <gnuradio/block.h>
 #include <algorithm>
 #include <deque>
 #include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
-#include <gnuradio/block.h>
-#include "gnss_satellite.h"
-#include "gps_cnav_navigation_message.h"
-#include "concurrent_queue.h"
 
-extern "C" {
-    #include "cnav_msg.h"
-    #include "edc.h"
-    #include "bits.h"
+extern "C"
+{
+#include "cnav_msg.h"
+#include "edc.h"
+#include "bits.h"
 }
 
 #include "GPS_L5.h"
@@ -55,7 +55,7 @@ class gps_l5_telemetry_decoder_cc;
 typedef boost::shared_ptr<gps_l5_telemetry_decoder_cc> gps_l5_telemetry_decoder_cc_sptr;
 
 gps_l5_telemetry_decoder_cc_sptr
-gps_l5_make_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
+gps_l5_make_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
 
 /*!
  * \brief This class implements a GPS L5 Telemetry decoder
@@ -65,16 +65,16 @@ class gps_l5_telemetry_decoder_cc : public gr::block
 {
 public:
     ~gps_l5_telemetry_decoder_cc();
-    void set_satellite(const Gnss_Satellite & satellite);  //!< Set satellite PRN
-    void set_channel(int channel);                         //!< Set receiver's channel
-    int general_work (int noutput_items, gr_vector_int &ninput_items,
-            gr_vector_const_void_star &input_items, gr_vector_void_star &output_items);
+    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
+    void set_channel(int channel);                        //!< Set receiver's channel
+    int general_work(int noutput_items, gr_vector_int &ninput_items,
+        gr_vector_const_void_star &input_items, gr_vector_void_star &output_items);
 
 
 private:
     friend gps_l5_telemetry_decoder_cc_sptr
-    gps_l5_make_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
-    gps_l5_telemetry_decoder_cc(const Gnss_Satellite & satellite, bool dump);
+    gps_l5_make_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
+    gps_l5_telemetry_decoder_cc(const Gnss_Satellite &satellite, bool dump);
 
     bool d_dump;
     Gnss_Satellite d_satellite;
@@ -90,7 +90,7 @@ private:
     bool d_flag_valid_word;
 
     Gps_CNAV_Navigation_Message d_CNAV_Message;
-    double bits_NH[GPS_L5_NH_CODE_LENGTH];
+    double bits_NH[GPS_L5i_NH_CODE_LENGTH];
     std::deque<double> sym_hist;
     bool sync_NH;
     bool new_sym;

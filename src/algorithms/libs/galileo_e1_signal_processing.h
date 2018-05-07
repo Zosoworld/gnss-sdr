@@ -34,6 +34,11 @@
 
 #include <complex>
 
+/*!
+ * \brief This function generates Galileo E1 code (can select E1B or E1C sinboc).
+ *
+ */
+void galileo_e1_code_gen_sinboc11_float(float* _dest, char _Signal[3], unsigned int _prn);
 
 /*!
  * \brief This function generates Galileo E1 code (can select E1B or E1C, cboc or sinboc
@@ -41,8 +46,8 @@
  *
  */
 void galileo_e1_code_gen_float_sampled(float* _dest, char _Signal[3],
-        bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift,
-        bool _secondary_flag);
+    bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift,
+    bool _secondary_flag);
 
 /*!
  * \brief This function generates Galileo E1 code (can select E1B or E1C, cboc or sinboc
@@ -50,7 +55,7 @@ void galileo_e1_code_gen_float_sampled(float* _dest, char _Signal[3],
  *
  */
 void galileo_e1_code_gen_float_sampled(float* _dest, char _Signal[3],
-        bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift);
+    bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift);
 
 /*!
  * \brief This function generates Galileo E1 code (can select E1B or E1C, cboc or sinboc
@@ -58,13 +63,13 @@ void galileo_e1_code_gen_float_sampled(float* _dest, char _Signal[3],
  *
  */
 void galileo_e1_code_gen_complex_sampled(std::complex<float>* _dest, char _Signal[3],
-        bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift,
-        bool _secondary_flag);
+    bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift,
+    bool _secondary_flag);
 
 /*!
  * \brief galileo_e1_code_gen_complex_sampled without _secondary_flag for backward compatibility.
  */
 void galileo_e1_code_gen_complex_sampled(std::complex<float>* _dest, char _Signal[3],
-        bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift);
+    bool _cboc, unsigned int _prn, signed int _fs, unsigned int _chip_shift);
 
 #endif /* GNSS_SDR_GALILEO_E1_SIGNAL_PROCESSING_H_ */

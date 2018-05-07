@@ -41,15 +41,17 @@ endif(NOT CMAKE_PREFIX_PATH)
 
 ########################################################################
 # Determine optional blocks/libraries to be built (default: not built)
-# Enable them here or at the command line by doing 'cmake -DENABLE_XXX=ON ../'
+# Enable them at the command line by doing 'cmake -DENABLE_XXX=ON ../'
 ########################################################################
 # Support of optional RF front-ends
+option(ENABLE_UHD "Enable the use of UHD (driver for all USRP devices)" ON)
 option(ENABLE_OSMOSDR "Enable the use of OsmoSDR and other front-ends (RTL-based dongles, HackRF, bladeRF, etc.) as signal source (experimental)" OFF)
 option(ENABLE_FLEXIBAND "Enable the use of the signal source adater for the Teleorbit Flexiband GNURadio driver" OFF)
 option(ENABLE_ARRAY "Enable the use of CTTC's antenna array front-end as signal source (experimental)" OFF)
 option(ENABLE_GN3S "Enable the use of the GN3S dongle as signal source (experimental)" OFF)
 option(ENABLE_PLUTOSDR "Enable the use of ADALM-PLUTO Evaluation Boards (Analog Devices Inc.), requires gr-iio" OFF)
 option(ENABLE_FMCOMMS2 "Enable the use of FMCOMMS4-EBZ + ZedBoard hardware, requires gr-iio" OFF)
+option(ENABLE_AD9361 "Enable the use of AD9361 directo to FPGA hardware, requires gr-iio" OFF)
 
 # Performance analysis tools
 option(ENABLE_GPERFTOOLS "Enable linking to Gperftools libraries (tcmalloc and profiler)" OFF)
@@ -316,7 +318,8 @@ set(GNSSSDR_GNURADIO_MIN_VERSION "3.7.3")
 set(GNSSSDR_BOOST_MIN_VERSION "1.45")
 set(GNSSSDR_PYTHON_MIN_VERSION "2.7")
 set(GNSSSDR_MAKO_MIN_VERSION "0.4.2")
-set(GNSSSDR_ARMADILLO_MIN_VERSION "4.200.0")
+set(GNSSSDR_ARMADILLO_MIN_VERSION "5.300.0")
+set(GNSSSDR_MATIO_MIN_VERSION "1.5.3")
 
 
 
@@ -329,7 +332,7 @@ set(GNSSSDR_ARMADILLO_LOCAL_VERSION "unstable")
 set(GNSSSDR_GTEST_LOCAL_VERSION "1.8.0")
 set(GNSSSDR_GNSS_SIM_LOCAL_VERSION "master")
 set(GNSSSDR_GPSTK_LOCAL_VERSION "2.10")
-set(GNSSSDR_MATIO_LOCAL_VERSION "1.5.11")
+set(GNSSSDR_MATIO_LOCAL_VERSION "1.5.12")
 
 
 
@@ -358,7 +361,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       endif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS ${GNSSSDR_GCC_MIN_VERSION})
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     execute_process(COMMAND
         ${CMAKE_CXX_COMPILER} -v
         RESULT_VARIABLE _res ERROR_VARIABLE _err
@@ -385,7 +388,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     else(${_res} STREQUAL "0")
         message(WARNING "\nCannot determine the version of the compiler selected to build GNSS-SDR (${APPLE_STR}Clang : ${CMAKE_CXX_COMPILER}). This build may or not work. We highly recommend using Apple Clang version ${APPLECLANG_MIN_VERSION} or more recent, or Clang version ${CLANG_MIN_VERSION} or more recent.")
     endif(${_res} STREQUAL "0")
-endif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
 
 
@@ -448,13 +451,13 @@ if(ENABLE_UNIT_TESTING OR ENABLE_SYSTEM_TESTING)
         endif(LIBGTEST_DEV_DIR)
         find_path(GTEST_INCLUDE_DIRS NAMES gtest/gtest.h PATHS ${GTEST_DIR}/include)
     else(GTEST_DIR)
-        find_path(LIBGTEST_DEV_DIR NAMES src/gtest-all.cc PATHS /usr/src/googletest/googletest /usr/src/gtest /opt/local/src/gtest-1.7.0 )
+        find_path(LIBGTEST_DEV_DIR NAMES src/gtest-all.cc PATHS /usr/src/googletest/googletest /usr/src/gtest /usr/include/gtest /opt/local/src/gtest-1.7.0 )
         find_path(GTEST_INCLUDE_DIRS NAMES gtest/gtest.h PATHS /usr/include /opt/local/src/gtest-1.7.0/include)
         if(LIBGTEST_DEV_DIR)
             message (STATUS "Googletest package has been found.")
         else(LIBGTEST_DEV_DIR)
             message (STATUS " Googletest has not been found.")
-            message (STATUS " Googletest will be downloaded and built automatically ")
+            message (STATUS " Googletest v${GNSSSDR_GTEST_LOCAL_VERSION} will be downloaded and built automatically ")
             message (STATUS " when doing '${CMAKE_MAKE_PROGRAM_PRETTY_NAME}'. ")
         endif(LIBGTEST_DEV_DIR)
     endif(GTEST_DIR)
@@ -698,7 +701,7 @@ set(LOCAL_GFLAGS false)
 find_package(GFlags)
 if (NOT GFlags_FOUND)
      message (STATUS " gflags library has not been found.")
-     message (STATUS " gflags will be downloaded and built automatically ")
+     message (STATUS " gflags v${GNSSSDR_GFLAGS_LOCAL_VERSION} will be downloaded and built automatically ")
      message (STATUS " when doing 'make'. ")
 
      if(CMAKE_VERSION VERSION_LESS 3.2)
@@ -766,7 +769,7 @@ if (NOT GLOG_FOUND OR ${LOCAL_GFLAGS})
      if(NOT GFlags_FOUND)
           message(STATUS " or it is likely not linked to gflags.")
      endif(NOT GFlags_FOUND)
-     message (STATUS " glog will be downloaded and built automatically ")
+     message (STATUS " glog v${GNSSSDR_GLOG_LOCAL_VERSION} will be downloaded and built automatically ")
      message (STATUS " when doing 'make'. ")
      if(NOT ${LOCAL_GFLAGS})
          add_library(gflags-${GNSSSDR_GFLAGS_LOCAL_VERSION} UNKNOWN IMPORTED)
@@ -781,7 +784,7 @@ if (NOT GLOG_FOUND OR ${LOCAL_GFLAGS})
          set(GFLAGS_LIBRARY_DIR_TO_LINK ${GFlags_LIBRARY_DIRS})
      endif(${LOCAL_GFLAGS})
 
-     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
          file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/tmp/configure_with_gflags
 "#!/bin/sh
 export CPPFLAGS=-I${GFlags_INCLUDE_DIRS}
@@ -797,7 +800,7 @@ autoreconf -vfi
 cd ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}
 ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glog/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/configure")
 
-      else("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+      else(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
              file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/tmp/configure_with_gflags
 "#!/bin/sh
 export CPPFLAGS=-I${GFlags_INCLUDE_DIRS}
@@ -810,7 +813,7 @@ autoreconf -vfi
 cd ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}
 ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glog/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/configure")
 
-     endif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+     endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
      file(COPY ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/tmp/configure_with_gflags
           DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/glog-${GNSSSDR_GLOG_LOCAL_VERSION}
@@ -822,9 +825,9 @@ ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glog/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/c
      # Ensure that aclocal and libtool are present
      if(OS_IS_LINUX)
          if(EXISTS "/usr/bin/libtoolize")
-             if(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+             if(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
                  # Everything ok, we can move on
-             else(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+             else(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
                  message(" aclocal has not been found.")
                  message(" You can try to install it by typing:")
                  if(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
@@ -835,7 +838,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glog/glog-${GNSSSDR_GLOG_LOCAL_VERSION}/c
                       message(" sudo apt-get install automake")
                  endif(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
                  message(FATAL_ERROR "aclocal is required to build glog from source")
-             endif(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+             endif(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
          else(EXISTS "/usr/bin/libtoolize")
              message(" libtool has not been found.")
              message(" You can try to install it by typing:")
@@ -955,7 +958,7 @@ endif(ARMADILLO_FOUND)
 
 if(NOT ARMADILLO_FOUND OR ENABLE_OWN_ARMADILLO)
      message(STATUS " Armadillo has not been found.")
-     message(STATUS " Armadillo will be downloaded and built automatically")
+     message(STATUS " Armadillo ${GNSSSDR_ARMADILLO_LOCAL_VERSION} will be downloaded and built automatically")
      message(STATUS " when doing '${CMAKE_MAKE_PROGRAM_PRETTY_NAME}'. ")
      set(armadillo_BRANCH ${GNSSSDR_ARMADILLO_LOCAL_VERSION})
      set(armadillo_RELEASE ${armadillo_BRANCH})
@@ -1094,10 +1097,43 @@ endif(NOT GNUTLS_OPENSSL_LIBRARY)
 # Matio - https://github.com/tbeu/matio
 ########################################################################
 find_package(MATIO)
-if(NOT MATIO_FOUND)
+if(NOT MATIO_FOUND OR MATIO_VERSION_STRING VERSION_LESS ${GNSSSDR_MATIO_MIN_VERSION})
+    if(MATIO_FOUND)
+         message(STATUS " Matio installed version (${MATIO_VERSION_STRING}) is too old (>= ${GNSSSDR_MATIO_MIN_VERSION} is required).")
+    endif(MATIO_FOUND)
+    message(STATUS " Matio v${GNSSSDR_MATIO_LOCAL_VERSION} will be downloaded and built automatically")
+    message(STATUS " when doing '${CMAKE_MAKE_PROGRAM_PRETTY_NAME}'. ")
     find_package(ZLIB)
     if(ZLIB_FOUND)
         get_filename_component(ZLIB_BASE_DIR ${ZLIB_INCLUDE_DIRS} DIRECTORY)
+        if(OS_IS_LINUX)
+            if(NOT EXISTS "/usr/bin/libtoolize")
+                message(" libtool has not been found.")
+                message(" You can try to install it by typing:")
+                if(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                    message(" sudo yum groupinstall 'Development Tools'")
+                elseif(${LINUX_DISTRIBUTION} MATCHES "openSUSE")
+                    message(" sudo zypper install libtoool")
+                else(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                    message(" sudo apt-get install libtool")
+                endif(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                message(FATAL_ERROR "libtool is required to build matio from source")
+            endif(NOT EXISTS "/usr/bin/libtoolize")
+            if(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+                message(STATUS "Automake found.")
+            else(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+                message(" aclocal has not been found.")
+                message(" You can try to install it by typing:")
+                if(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                    message(" sudo yum groupinstall 'Development Tools'")
+                elseif(${LINUX_DISTRIBUTION} MATCHES "openSUSE")
+                    message(" sudo zypper install automake")
+                else(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                    message(" sudo apt-get install automake")
+                endif(${LINUX_DISTRIBUTION} MATCHES "Fedora" OR ${LINUX_DISTRIBUTION} MATCHES "Red Hat")
+                message(FATAL_ERROR "aclocal is required to build matio from source")
+             endif(EXISTS "/usr/bin/aclocal-1.15" OR EXISTS "/usr/bin/aclocal-1.14" OR EXISTS "/usr/bin/aclocal-1.13" OR EXISTS "/usr/bin/aclocal-1.11"  OR EXISTS "/usr/bin/aclocal-1.10")
+        endif(OS_IS_LINUX)
         find_package(HDF5)
         if(HDF5_FOUND)
             list(GET HDF5_LIBRARIES 0 HDF5_FIRST_DIR)
@@ -1154,25 +1190,25 @@ if(NOT MATIO_FOUND)
     else(ZLIB_FOUND)
         message(FATAL_ERROR "*** The zlib library is required to build gnss-sdr")
     endif(ZLIB_FOUND)
-endif(NOT MATIO_FOUND)
+endif(NOT MATIO_FOUND OR MATIO_VERSION_STRING VERSION_LESS ${GNSSSDR_MATIO_MIN_VERSION})
 
 
 
 ################################################################################
 # USRP Hardware Driver (UHD) - OPTIONAL
 ################################################################################
-find_package(UHD)
-if(NOT UHD_FOUND)
-    set(ENABLE_UHD OFF)
-    message(STATUS " The USRP Hardware Driver (UHD) signal source will not be built,")
-    message(STATUS " so all USRP-based front-ends will not be usable.")
-    message(STATUS " Please check http://files.ettus.com/manual/")
-else(NOT UHD_FOUND)
-    set(GR_REQUIRED_COMPONENTS UHD)
-    find_package(Gnuradio)
-    set(ENABLE_UHD ON)
-endif(NOT UHD_FOUND)
-
+if(ENABLE_UHD)
+    find_package(UHD)
+    if(NOT UHD_FOUND)
+        set(ENABLE_UHD OFF)
+        message(STATUS " The USRP Hardware Driver (UHD) signal source will not be built,")
+        message(STATUS " so all USRP-based front-ends will not be usable.")
+        message(STATUS " Please check http://files.ettus.com/manual/")
+    else(NOT UHD_FOUND)
+        set(GR_REQUIRED_COMPONENTS UHD)
+        find_package(Gnuradio)
+    endif(NOT UHD_FOUND)
+endif(ENABLE_UHD)
 
 
 ################################################################################
@@ -1423,39 +1459,51 @@ endif(ENABLE_GPROF)
 ########################################################################
 # Set compiler flags
 ########################################################################
-# Enable C++14 support in GCC / Fallback to C++11 when using GCC < 6.1.1
+# Support of C++17 is still not possible due to pm_remez.h (solved in GNU Radio 3.8)
+# Enable C++14 support in GCC >= 6.1.1
+# Fallback to C++11 when using GCC < 6.1.1
 if(CMAKE_COMPILER_IS_GNUCXX AND NOT WIN32)
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.1.1")
         set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++11")
     else(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.1.1")
-        set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+        # if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0.0")
+            set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+        # else(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0.0")
+            # set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++17")
+        # endif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0.0")
     endif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.1.1")
     set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -Wall -Wextra")  #Add warning flags: For "-Wall" see http://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
 endif(CMAKE_COMPILER_IS_GNUCXX AND NOT WIN32)
 
-# Enable C++14 support in Clang from 3.5 / Fallback to C++11 if older version and use lib++ if working in macOS
+# Support of C++17 is still not possible due to pm_remez.h (solved in GNU Radio 3.8)
+# Enable C++14 support in Clang >= 3.5.0 or AppleClang >= 600
+# Fallback to C++11 if older version
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     if(OS_IS_MACOSX)
         # See https://trac.macports.org/wiki/XcodeVersionInfo for Apple Clang version equivalences
         if(CLANG_VERSION VERSION_LESS "600")
             set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++11")
         else(CLANG_VERSION VERSION_LESS "600")
-            set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+            # if(CLANG_VERSION VERSION_LESS "900")
+                set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+            # else(CLANG_VERSION VERSION_LESS "900")
+                # set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++17")
+            # endif(CLANG_VERSION VERSION_LESS "900")
         endif(CLANG_VERSION VERSION_LESS "600")
-        set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -Wno-deprecated-declarations")
     else(OS_IS_MACOSX)
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.5.0")
             set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++11")
         else(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.5.0")
-            set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+            # if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.0.0")
+                set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++14")
+            # else(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.0.0")
+                # set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -std=c++17")
+            # endif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.0.0")
         endif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.5.0")
     endif(OS_IS_MACOSX)
 
-    if(CMAKE_BUILD_TYPE MATCHES "Release")
-        set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -Wno-unused-private-field")
-    endif(CMAKE_BUILD_TYPE MATCHES "Release")
     if(OS_IS_MACOSX)
-       set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -stdlib=libc++")
+        set(MY_CXX_FLAGS "${MY_CXX_FLAGS} -stdlib=libc++")
     endif(OS_IS_MACOSX)
 endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 

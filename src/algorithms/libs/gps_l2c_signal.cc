@@ -30,25 +30,25 @@
  * -------------------------------------------------------------------------
  */
 
-#include <gps_l2c_signal.h>
+#include "gps_l2c_signal.h"
+#include "GPS_L2C.h"
 #include <cstdint>
 #include <cmath>
-#include "GPS_L2C.h"
 
 
 int32_t gps_l2c_m_shift(int32_t x)
 {
-    return static_cast<int32_t>((x >> 1)^((x & 1) * 0445112474));
+    return static_cast<int32_t>((x >> 1) ^ ((x & 1) * 0445112474));
 }
 
 
-void gps_l2c_m_code(int32_t * _dest, unsigned int _prn)
+void gps_l2c_m_code(int32_t* _dest, unsigned int _prn)
 {
     int32_t x;
-    x = GPS_L2C_M_INIT_REG[ _prn - 1];
+    x = GPS_L2C_M_INIT_REG[_prn - 1];
     for (int n = 0; n < GPS_L2_M_CODE_LENGTH_CHIPS; n++)
         {
-            _dest[n] = static_cast<int8_t>(x&1);
+            _dest[n] = static_cast<int8_t>(x & 1);
             x = gps_l2c_m_shift(x);
         }
 }
@@ -66,6 +66,23 @@ void gps_l2c_m_code_gen_complex(std::complex<float>* _dest, unsigned int _prn)
     for (signed int i = 0; i < GPS_L2_M_CODE_LENGTH_CHIPS; i++)
         {
             _dest[i] = std::complex<float>(1.0 - 2.0 * _code[i], 0.0);
+        }
+
+    delete[] _code;
+}
+
+void gps_l2c_m_code_gen_float(float* _dest, unsigned int _prn)
+{
+    int32_t* _code = new int32_t[GPS_L2_M_CODE_LENGTH_CHIPS];
+
+    if (_prn > 0 and _prn < 51)
+        {
+            gps_l2c_m_code(_code, _prn);
+        }
+
+    for (signed int i = 0; i < GPS_L2_M_CODE_LENGTH_CHIPS; i++)
+        {
+            _dest[i] = 1.0 - 2.0 * static_cast<float>(_code[i]);
         }
 
     delete[] _code;
@@ -92,7 +109,7 @@ void gps_l2c_m_code_gen_complex_sampled(std::complex<float>* _dest, unsigned int
     _samplesPerCode = static_cast<int>(static_cast<double>(_fs) / (static_cast<double>(GPS_L2_M_CODE_RATE_HZ) / static_cast<double>(_codeLength)));
 
     //--- Find time constants --------------------------------------------------
-    _ts = 1.0 / static_cast<float>(_fs);   // Sampling period in sec
+    _ts = 1.0 / static_cast<float>(_fs);                    // Sampling period in sec
     _tc = 1.0 / static_cast<float>(GPS_L2_M_CODE_RATE_HZ);  // C/A chip period in sec
 
     //float aux;
@@ -114,12 +131,8 @@ void gps_l2c_m_code_gen_complex_sampled(std::complex<float>* _dest, unsigned int
                 }
             else
                 {
-                    _dest[i] = std::complex<float>(1.0 - 2.0 * _code[_codeValueIndex], 0); //repeat the chip -> upsample
+                    _dest[i] = std::complex<float>(1.0 - 2.0 * _code[_codeValueIndex], 0);  //repeat the chip -> upsample
                 }
         }
     delete[] _code;
 }
-
-
-
-

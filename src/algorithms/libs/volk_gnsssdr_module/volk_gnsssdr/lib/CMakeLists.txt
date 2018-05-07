@@ -257,6 +257,36 @@ if(NOT CPU_IS_x86)
 endif(NOT CPU_IS_x86)
 
 ########################################################################
+# Select neon based on ARM ISA version
+########################################################################
+
+# First, compile a test program to see if compiler supports neon.
+
+include(CheckCSourceCompiles)
+
+check_c_source_compiles("#include <arm_neon.h>\nint main(){ uint8_t *dest; uint8x8_t res; vst1_u8(dest, res); }"
+	                neon_compile_result)
+
+if(neon_compile_result)
+    check_c_source_compiles("int main(){asm volatile(\"vrev32.8 q0, q0\");}"
+                            have_neonv7_result )
+    check_c_source_compiles("int main(){asm volatile(\"sub v1.4s,v1.4s,v1.4s\");}"
+                            have_neonv8_result )
+
+    if (have_neonv7_result)
+        OVERRULE_ARCH(neonv8 "CPU is armv7")
+    endif()
+
+    if (have_neonv8_result)
+        OVERRULE_ARCH(neonv7 "CPU is armv8")
+    endif()
+else(neon_compile_result)
+    OVERRULE_ARCH(neon "Compiler doesn't support NEON")
+    OVERRULE_ARCH(neonv7 "Compiler doesn't support NEON")
+    OVERRULE_ARCH(neonv8 "Compiler doesn't support NEON")
+endif(neon_compile_result)
+
+########################################################################
 # implement overruling in the ORC case,
 # since ORC always passes flag detection
 ########################################################################
@@ -345,7 +375,7 @@ macro(gen_template tmpl output)
     )
 endmacro(gen_template)
 
-make_directory(${PROJECT_BINARY_DIR}/include/volk_gnsssdr)
+file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/include/volk_gnsssdr)
 
 gen_template(${PROJECT_SOURCE_DIR}/tmpl/volk_gnsssdr.tmpl.h              ${PROJECT_BINARY_DIR}/include/volk_gnsssdr/volk_gnsssdr.h)
 gen_template(${PROJECT_SOURCE_DIR}/tmpl/volk_gnsssdr.tmpl.c              ${PROJECT_BINARY_DIR}/lib/volk_gnsssdr.c)
@@ -423,7 +453,7 @@ include_directories(
 #  on by default, but let users turn it off
 ########################################################################
 if(${CMAKE_VERSION} VERSION_GREATER "2.8.9")
-  set(ASM_ARCHS_AVAILABLE "neon")
+  set(ASM_ARCHS_AVAILABLE "neonv7" "neonv8")
 
   set(FULL_C_FLAGS "${CMAKE_C_FLAGS}" "${CMAKE_CXX_COMPILER_ARG1}")
 
@@ -432,7 +462,7 @@ if(${CMAKE_VERSION} VERSION_GREATER "2.8.9")
   # set up the assembler flags and include the source files
   foreach(ARCH ${ASM_ARCHS_AVAILABLE})
       string(REGEX MATCH "${ARCH}" ASM_ARCH "${available_archs}")
-    if( ASM_ARCH STREQUAL "neon" )
+    if( ASM_ARCH STREQUAL "neonv7" )
       message(STATUS "---- Adding ASM files") # we always use ATT syntax
       message(STATUS "-- Detected neon architecture; enabling ASM")
       # setup architecture specific assembler flags
@@ -604,18 +634,24 @@ if(ENABLE_TESTING)
 
     #include Boost headers
     include_directories(${Boost_INCLUDE_DIRS})
-    link_directories(${Boost_LIBRARY_DIRS})
-    make_directory(${CMAKE_CURRENT_BINARY_DIR}/.unittest)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/.unittest)
     set_source_files_properties(
         ${CMAKE_CURRENT_SOURCE_DIR}/testqa.cc PROPERTIES
         COMPILE_DEFINITIONS "BOOST_TEST_DYN_LINK;BOOST_TEST_MAIN"
     )
 
     include(VolkAddTest)
-    VOLK_ADD_TEST(test_all
+    VOLK_GEN_TEST("volk_gnsssdr_test_all"
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/testqa.cc
-                       ${CMAKE_CURRENT_SOURCE_DIR}/qa_utils.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/qa_utils.cc
         TARGET_DEPS volk_gnsssdr
-    )
+      )
+    foreach(kernel ${h_files})
+      get_filename_component(kernel ${kernel} NAME)
+      string(REPLACE ".h" "" kernel ${kernel})
+      if(NOT ${kernel} MATCHES puppet*)
+         VOLK_ADD_TEST(${kernel} "volk_gnsssdr_test_all")
+      endif(NOT ${kernel} MATCHES puppet*)
+    endforeach()
 
 endif(ENABLE_TESTING)
