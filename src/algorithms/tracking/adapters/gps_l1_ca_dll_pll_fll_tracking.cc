@@ -63,7 +63,7 @@ GpsL1CaDllPllFllTracking::GpsL1CaDllPllFllTracking(
     if (FLAGS_pll_bw_hz != 0.0) pll_bw_hz = static_cast<float>(FLAGS_pll_bw_hz);
     trk_param.pll_bw_hz = pll_bw_hz;
     float fll_bw_hz = configuration->property(role + ".fll_bw_hz", 50.0);
-    if (FLAGS_fll_bw_hz != 0.0) fll_bw_hz = static_cast<float>(FLAGS_fll_bw_hz);
+    //if (FLAGS_fll_bw_hz != 0.0) fll_bw_hz = static_cast<float>(FLAGS_fll_bw_hz);
     trk_param.fll_bw_hz = fll_bw_hz;
     float pll_bw_narrow_hz = configuration->property(role + ".pll_bw_narrow_hz", 20.0);
     trk_param.pll_bw_narrow_hz = pll_bw_narrow_hz;
